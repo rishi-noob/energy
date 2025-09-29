@@ -9,12 +9,11 @@ from datetime import datetime, timezone
 import pytz
 import math
 import time
-import streamlit.components.v1 as components
 
 # Page configuration
 st.set_page_config(
     page_title="Smart Energy Source Predictor",
-    page_icon="âš¡",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -125,22 +124,6 @@ st.markdown("""
         margin-bottom: 1rem;
     }
     
-    .location-status {
-        background-color: #2d2d2d;
-        padding: 1rem;
-        border-radius: 10px;
-        margin-bottom: 1rem;
-        border-left: 4px solid #4CAF50;
-    }
-    
-    .location-error {
-        background-color: #2d2d2d;
-        padding: 1rem;
-        border-radius: 10px;
-        margin-bottom: 1rem;
-        border-left: 4px solid #ff6b6b;
-    }
-    
     .stRadio > div {
         flex-direction: row;
         gap: 2rem;
@@ -152,163 +135,17 @@ st.markdown("""
         border-radius: 8px;
         cursor: pointer;
     }
-    
-    .location-btn {
-        background: linear-gradient(135deg, #4CAF50, #45a049);
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 16px;
-        margin: 10px 0;
-    }
-    
-    .location-btn:hover {
-        background: linear-gradient(135deg, #45a049, #3d8b40);
-    }
 </style>
 """, unsafe_allow_html=True)
 
 # Constants
 OPENWEATHER_API_KEY = "a0eb17f6a7fcba0c0792ecd57ac8a17c"
 
-def get_browser_location_html():
-    """Generate HTML/JavaScript for browser geolocation"""
-    return """
-    <div>
-        <button class="location-btn" onclick="getLocation()">📍 Use My Current Location</button>
-        <div id="location-status"></div>
-        <div id="location-result" style="display:none;"></div>
-    </div>
-    
-    <script>
-    function getLocation() {
-        const statusDiv = document.getElementById('location-status');
-        const resultDiv = document.getElementById('location-result');
-        
-        statusDiv.innerHTML = '<p>🔍 Detecting your location...</p>';
-        
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                function(position) {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-                    const accuracy = position.coords.accuracy;
-                    
-                    // Store in result div for Streamlit to read
-                    resultDiv.innerHTML = JSON.stringify({
-                        lat: lat,
-                        lon: lon,
-                        accuracy: accuracy,
-                        timestamp: Date.now()
-                    });
-                    resultDiv.style.display = 'block';
-                    
-                    statusDiv.innerHTML = `
-                        <div class="location-status">
-                            <p>✅ Location detected successfully!</p>
-                            <p>📍 Latitude: ${lat.toFixed(6)}, Longitude: ${lon.toFixed(6)}</p>
-                            <p>🎯 Accuracy: ${Math.round(accuracy)}m</p>
-                        </div>
-                    `;
-                    
-                    // Trigger Streamlit rerun
-                    window.parent.postMessage({
-                        type: 'streamlit:setComponentValue',
-                        value: {lat: lat, lon: lon, accuracy: accuracy, timestamp: Date.now()}
-                    }, '*');
-                },
-                function(error) {
-                    let errorMsg = '';
-                    switch(error.code) {
-                        case error.PERMISSION_DENIED:
-                            errorMsg = "Location access denied by user. Please enable location permissions.";
-                            break;
-                        case error.POSITION_UNAVAILABLE:
-                            errorMsg = "Location information unavailable.";
-                            break;
-                        case error.TIMEOUT:
-                            errorMsg = "Location request timed out.";
-                            break;
-                        default:
-                            errorMsg = "An unknown error occurred.";
-                            break;
-                    }
-                    statusDiv.innerHTML = `
-                        <div class="location-error">
-                            <p>❌ Error: ${errorMsg}</p>
-                            <p>💡 Tip: Make sure location services are enabled in your browser</p>
-                        </div>
-                    `;
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 60000
-                }
-            );
-        } else {
-            statusDiv.innerHTML = `
-                <div class="location-error">
-                    <p>❌ Geolocation is not supported by this browser.</p>
-                </div>
-            `;
-        }
-    }
-    
-    // Auto-trigger location on page load if needed
-    if (window.location.search.includes('auto_locate=true')) {
-        getLocation();
-    }
-    </script>
-    """
-
-def get_location_from_coordinates(lat, lon):
-    """Get city/country info from coordinates using reverse geocoding"""
-    try:
-        # Use OpenWeatherMap's reverse geocoding API
-        url = f"http://api.openweathermap.org/geo/1.0/reverse?lat={lat}&lon={lon}&limit=1&appid={OPENWEATHER_API_KEY}"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data:
-                location_info = data[0]
-                return {
-                    'lat': lat,
-                    'lon': lon,
-                    'city': location_info.get('name', 'Unknown'),
-                    'country': location_info.get('country', 'Unknown'),
-                    'state': location_info.get('state', ''),
-                    'timezone': 'UTC'  # Will be determined later
-                }
-    except Exception as e:
-        st.warning(f"Reverse geocoding failed: {e}")
-    
-    # Fallback - just return coordinates
-    return {
-        'lat': lat,
-        'lon': lon,
-        'city': f'Location ({lat:.2f}, {lon:.2f})',
-        'country': 'Unknown',
-        'state': '',
-        'timezone': 'UTC'
-    }
-
 def get_location():
-    """Get location - prioritize browser geolocation, fallback to IP geolocation"""
-    
-    # Check if we have browser location data in session state
-    if 'user_location' in st.session_state and st.session_state.user_location:
-        loc = st.session_state.user_location
-        if 'lat' in loc and 'lon' in loc:
-            # Get detailed location info from coordinates
-            return get_location_from_coordinates(loc['lat'], loc['lon'])
-    
-    # Try IP geolocation as fallback
+    """Auto-detect current location using IP geolocation"""
     try:
-        response = requests.get("http://ip-api.com/json/", timeout=5)
+        # Try IP geolocation service
+        response = requests.get("http://ip-api.com/json/", timeout=10)
         if response.status_code == 200:
             data = response.json()
             if data['status'] == 'success':
@@ -320,9 +157,9 @@ def get_location():
                     'timezone': data['timezone']
                 }
     except Exception as e:
-        st.warning(f"IP geolocation failed: {e}")
+        st.warning(f"Location detection failed: {e}")
     
-    # Final fallback to default location (Delhi, India)
+    # Fallback to default location (Delhi, India)
     return {
         'lat': 28.6139,
         'lon': 77.2090,
@@ -459,83 +296,6 @@ def ai_decision(solar_irradiance, wind_speed, load_demand, battery_soc, current_
         # Wind is better or solar is too weak
         return "Wind Power Recommended", "💨", "Wind conditions favorable over solar"
 
-def display_location_selector():
-    """Display location selection interface"""
-    st.markdown("""
-    <div class="section-title">📍 Location Settings</div>
-    """, unsafe_allow_html=True)
-    
-    # Location method selection
-    location_method = st.radio(
-        "Choose location method:",
-        ["🌐 Use Browser Location (Recommended)", "🔧 Manual Coordinates", "🌍 IP-based Location"],
-        horizontal=False
-    )
-    
-    if location_method == "🌐 Use Browser Location (Recommended)":
-        st.markdown("Click the button below to allow the app to access your current location:")
-        
-        # Browser geolocation component
-        location_data = components.html(
-            get_browser_location_html(),
-            height=200,
-            scrolling=True
-        )
-        
-        # Handle location data from browser
-        if location_data and isinstance(location_data, dict):
-            if 'lat' in location_data and 'lon' in location_data:
-                st.session_state.user_location = location_data
-                st.success(f"✅ Location updated: {location_data['lat']:.6f}, {location_data['lon']:.6f}")
-                st.rerun()
-        
-        # Show current location status
-        if 'user_location' in st.session_state and st.session_state.user_location:
-            loc = st.session_state.user_location
-            st.success(f"📍 Current location: {loc.get('lat', 0):.6f}, {loc.get('lon', 0):.6f}")
-        
-    elif location_method == "🔧 Manual Coordinates":
-        st.markdown("Enter your coordinates manually:")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            manual_lat = st.number_input(
-                "Latitude",
-                min_value=-90.0,
-                max_value=90.0,
-                value=st.session_state.get('manual_lat', 28.6139),
-                step=0.000001,
-                format="%.6f"
-            )
-        
-        with col2:
-            manual_lon = st.number_input(
-                "Longitude",
-                min_value=-180.0,
-                max_value=180.0,
-                value=st.session_state.get('manual_lon', 77.2090),
-                step=0.000001,
-                format="%.6f"
-            )
-        
-        if st.button("📍 Use These Coordinates"):
-            st.session_state.user_location = {
-                'lat': manual_lat,
-                'lon': manual_lon,
-                'manual': True
-            }
-            st.session_state.manual_lat = manual_lat
-            st.session_state.manual_lon = manual_lon
-            st.success(f"📍 Location set to: {manual_lat:.6f}, {manual_lon:.6f}")
-            st.rerun()
-    
-    else:  # IP-based location
-        st.markdown("Using IP-based location detection (less accurate)")
-        if st.button("🔍 Detect IP Location"):
-            if 'user_location' in st.session_state:
-                del st.session_state.user_location
-            st.rerun()
-
 def display_real_time_dashboard():
     """Display the real-time dashboard with improved UI"""
     
@@ -546,10 +306,6 @@ def display_real_time_dashboard():
         <div class="main-subtitle">Real-time AI system to predict optimal renewable energy source</div>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Location Selector in sidebar or expandable section
-    with st.expander("📍 Location Settings", expanded=False):
-        display_location_selector()
     
     # Control Panel
     st.markdown("""
@@ -584,10 +340,7 @@ def display_real_time_dashboard():
         
         # Get current time in location timezone
         try:
-            if location.get('timezone') and location['timezone'] != 'UTC':
-                tz = pytz.timezone(location['timezone'])
-            else:
-                tz = pytz.UTC
+            tz = pytz.timezone(location['timezone'])
             current_time = datetime.now(tz)
         except:
             current_time = datetime.now()
@@ -601,24 +354,9 @@ def display_real_time_dashboard():
         )
     
     # Real-time clock display
-    location_display = f"{location['city']}, {location['country']}"
-    if location.get('state'):
-        location_display = f"{location['city']}, {location['state']}, {location['country']}"
-    
     st.markdown(f"""
     <div class="time-display">
-        📍 {location_display} | 🕐 {current_time.strftime('%Y-%m-%d %H:%M:%S %Z')}
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Show location source
-    location_source = "Browser Location" if 'user_location' in st.session_state and st.session_state.user_location else "IP Location"
-    if 'user_location' in st.session_state and st.session_state.user_location and st.session_state.user_location.get('manual'):
-        location_source = "Manual Coordinates"
-    
-    st.markdown(f"""
-    <div style="text-align: center; margin-bottom: 1rem; opacity: 0.7; font-size: 0.9rem;">
-        Location source: {location_source} | Coordinates: {location['lat']:.6f}, {location['lon']:.6f}
+        📍 {location['city']}, {location['country']} | 🕒 {current_time.strftime('%Y-%m-%d %H:%M:%S %Z')}
     </div>
     """, unsafe_allow_html=True)
     
@@ -637,7 +375,7 @@ def display_real_time_dashboard():
         st.markdown(f"""
         <div class="metric-card">
             <div class="metric-label">☀️ Solar Irradiance</div>
-            <div class="metric-value">{solar_irradiance:.1f} W/m²</div>
+            <div class="metric-value">{solar_irradiance:.1f} kWh/m²</div>
         </div>
         """, unsafe_allow_html=True)
     
@@ -673,8 +411,7 @@ def display_real_time_dashboard():
         solar_irradiance, 
         weather['wind_speed'], 
         load_demand, 
-        battery_soc,
-        current_time
+        battery_soc
     )
     
     st.markdown("""
@@ -748,11 +485,11 @@ def display_test_model():
     
     with col1:
         solar_irradiance = st.slider(
-            "☀️ Solar Irradiance (W/m²)",
+            "☀️ Solar Irradiance (kWh/m²)",
             min_value=0.0,
-            max_value=1200.0,
-            value=600.0,
-            step=50.0
+            max_value=1.2,
+            value=0.6,
+            step=0.05
         )
         
         wind_speed = st.slider(
@@ -782,7 +519,7 @@ def display_test_model():
     
     # Calculate and display results
     decision, icon, description = ai_decision(
-        solar_irradiance,
+        solar_irradiance * 1000,  # Convert to W/m²
         wind_speed, 
         load_demand, 
         battery_soc
@@ -817,7 +554,7 @@ def display_test_model():
     """, unsafe_allow_html=True)
     
     # Show power calculations
-    solar_power = solar_irradiance * 0.015  # 15kW array
+    solar_power = solar_irradiance * 15  # 15kW array
     wind_power = estimate_wind_power(wind_speed)
     total_renewable = solar_power + wind_power
     
@@ -864,10 +601,6 @@ def display_test_model():
 
 def main():
     """Main application function"""
-    # Initialize session state
-    if 'user_location' not in st.session_state:
-        st.session_state.user_location = None
-    
     # API Key setup notification
     if OPENWEATHER_API_KEY == "your_api_key_here":
         st.info("📝 **Note:** Using mock weather data. Add your OpenWeatherMap API key for real data.")
